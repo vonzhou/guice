@@ -81,7 +81,9 @@ public class ClientServiceWithGuiceDefaults {
 
     public static void main(String[] args) throws CreationException {
         new ClientServiceWithGuiceDefaults().testClient();
+
         Injector injector = Guice.createInjector();
+        // 能够生成某种类型示例的 provider
         Client client = injector.getProvider(Client.class).get();
     }
 }
