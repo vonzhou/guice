@@ -16,12 +16,7 @@
 
 package com.google.inject.example;
 
-import com.google.inject.CreationException;
-import com.google.inject.Guice;
-import com.google.inject.ImplementedBy;
-import com.google.inject.Inject;
-import com.google.inject.Injector;
-import com.google.inject.Singleton;
+import com.google.inject.*;
 import junit.framework.Assert;
 
 /**
@@ -41,6 +36,7 @@ public class ClientServiceWithGuiceDefaults {
         @Override
         public void go() {
             // ...
+            System.out.println("ServiceImpl go ....");
         }
     }
 
@@ -82,8 +78,12 @@ public class ClientServiceWithGuiceDefaults {
     public static void main(String[] args) throws CreationException {
         new ClientServiceWithGuiceDefaults().testClient();
 
+        // 创建一个注入器
         Injector injector = Guice.createInjector();
+
         // 能够生成某种类型示例的 provider
-        Client client = injector.getProvider(Client.class).get();
+        Provider<Client> provider = injector.getProvider(Client.class);
+        Client client = provider.get();
+        client.go();
     }
 }

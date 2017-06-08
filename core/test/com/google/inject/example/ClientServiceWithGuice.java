@@ -87,7 +87,12 @@ public class ClientServiceWithGuice {
 
     public static void main(String[] args) throws CreationException {
         new ClientServiceWithGuice().testClient();
+
+        // 创建注入器，指定配置 Module
         Injector injector = Guice.createInjector(new MyModule());
-        Client client = injector.getInstance(Client.class);
+
+        Client client = injector.getInstance(Client.class); // 等价于下面
+
+        client = injector.getProvider(Client.class).get();
     }
 }

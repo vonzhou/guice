@@ -34,423 +34,445 @@ import junit.framework.TestCase;
 
 public class InjectorTest extends TestCase {
 
-  @Retention(RUNTIME)
-  @BindingAnnotation
-  @interface Other {}
-
-  @Retention(RUNTIME)
-  @BindingAnnotation
-  @interface S {}
-
-  @Retention(RUNTIME)
-  @BindingAnnotation
-  @interface I {}
-
-  public void testToStringDoesNotInfinitelyRecurse() {
-    Injector injector = Guice.createInjector(Stage.TOOL);
-    injector.toString();
-    injector.getBinding(Injector.class).toString();
-  }
-
-  public void testProviderMethods() throws CreationException {
-    final SampleSingleton singleton = new SampleSingleton();
-    final SampleSingleton other = new SampleSingleton();
-
-    Injector injector =
-        Guice.createInjector(
-            new AbstractModule() {
-              @Override
-              protected void configure() {
-                bind(SampleSingleton.class).toInstance(singleton);
-                bind(SampleSingleton.class).annotatedWith(Other.class).toInstance(other);
-              }
-            });
-
-    assertSame(singleton, injector.getInstance(Key.get(SampleSingleton.class)));
-    assertSame(singleton, injector.getInstance(SampleSingleton.class));
-
-    assertSame(other, injector.getInstance(Key.get(SampleSingleton.class, Other.class)));
-  }
-
-  static class SampleSingleton {}
-
-  public void testInjection() throws CreationException {
-    Injector injector = createFooInjector();
-    Foo foo = injector.getInstance(Foo.class);
-
-    assertEquals("test", foo.s);
-    assertEquals("test", foo.bar.getTee().getS());
-    assertSame(foo.bar, foo.copy);
-    assertEquals(5, foo.i);
-    assertEquals(5, foo.bar.getI());
-
-    // Test circular dependency.
-    assertSame(foo.bar, foo.bar.getTee().getBar());
-  }
-
-  private Injector createFooInjector() throws CreationException {
-    return Guice.createInjector(
-        new AbstractModule() {
-          @Override
-          protected void configure() {
-            bind(Bar.class).to(BarImpl.class);
-            bind(Tee.class).to(TeeImpl.class);
-            bindConstant().annotatedWith(S.class).to("test");
-            bindConstant().annotatedWith(I.class).to(5);
-          }
-        });
-  }
-
-  public void testGetInstance() throws CreationException {
-    Injector injector = createFooInjector();
-
-    Bar bar = injector.getInstance(Key.get(Bar.class));
-    assertEquals("test", bar.getTee().getS());
-    assertEquals(5, bar.getI());
-  }
-
-  public void testIntAndIntegerAreInterchangeable() throws CreationException {
-    Injector injector =
-        Guice.createInjector(
-            new AbstractModule() {
-              @Override
-              protected void configure() {
-                bindConstant().annotatedWith(I.class).to(5);
-              }
-            });
-
-    IntegerWrapper iw = injector.getInstance(IntegerWrapper.class);
-    assertEquals(5, (int) iw.i);
-  }
-
-  public void testInjectorApiIsNotSerializable() throws IOException {
-    Injector injector = Guice.createInjector();
-    assertNotSerializable(injector);
-    assertNotSerializable(injector.getProvider(String.class));
-    assertNotSerializable(injector.getBinding(String.class));
-    for (Binding<?> binding : injector.getBindings().values()) {
-      assertNotSerializable(binding);
-    }
-  }
-
-  static class IntegerWrapper {
-    @Inject @I Integer i;
-  }
-
-  static class Foo {
-
-    @Inject Bar bar;
-    @Inject Bar copy;
-
-    @Inject @S String s;
-
-    int i;
-
-    @Inject
-    void setI(@I int i) {
-      this.i = i;
-    }
-  }
-
-  interface Bar {
-
-    Tee getTee();
-
-    int getI();
-  }
-
-  @Singleton
-  static class BarImpl implements Bar {
-
-    @Inject @I int i;
-
-    Tee tee;
-
-    @Inject
-    void initialize(Tee tee) {
-      this.tee = tee;
+    @Retention(RUNTIME)
+    @BindingAnnotation
+    @interface Other {
     }
 
-    @Override
-    public Tee getTee() {
-      return tee;
+    @Retention(RUNTIME)
+    @BindingAnnotation
+    @interface S {
     }
 
-    @Override
-    public int getI() {
-      return i;
-    }
-  }
-
-  interface Tee {
-
-    String getS();
-
-    Bar getBar();
-  }
-
-  static class TeeImpl implements Tee {
-
-    final String s;
-    @Inject Bar bar;
-
-    @Inject
-    TeeImpl(@S String s) {
-      this.s = s;
+    @Retention(RUNTIME)
+    @BindingAnnotation
+    @interface I {
     }
 
-    @Override
-    public String getS() {
-      return s;
+    public void testToStringDoesNotInfinitelyRecurse() {
+        Injector injector = Guice.createInjector(Stage.TOOL);
+        String res = injector.toString();
+        System.out.println(res);
+        res = injector.getBinding(Injector.class).toString();
+        System.out.println(res);
     }
 
-    @Override
-    public Bar getBar() {
-      return bar;
-    }
-  }
+    public void testProviderMethods() throws CreationException {
+        final SampleSingleton singleton = new SampleSingleton();
+        final SampleSingleton other = new SampleSingleton();
 
-  public void testInjectStatics() throws CreationException {
-    Guice.createInjector(
-        new AbstractModule() {
-          @Override
-          protected void configure() {
-            bindConstant().annotatedWith(S.class).to("test");
-            bindConstant().annotatedWith(I.class).to(5);
-            requestStaticInjection(Static.class);
-          }
-        });
-
-    assertEquals("test", Static.s);
-    assertEquals(5, Static.i);
-  }
-
-  public void testInjectStaticInterface() {
-    try {
-      Guice.createInjector(
-          new AbstractModule() {
+        Injector injector = Guice.createInjector(new AbstractModule() {
             @Override
             protected void configure() {
-              requestStaticInjection(Interface.class);
+                bind(SampleSingleton.class).toInstance(singleton);
+                bind(SampleSingleton.class).annotatedWith(Other.class).toInstance(other);
             }
-          });
-      fail();
-    } catch (CreationException ce) {
-      assertEquals(1, ce.getErrorMessages().size());
-      Asserts.assertContains(
-          ce.getMessage(),
-          "1) "
-              + Interface.class.getName()
-              + " is an interface, but interfaces have no static injection points.",
-          "at " + InjectorTest.class.getName(),
-          "configure");
-    }
-  }
-
-  private static interface Interface {}
-
-  static class Static {
-
-    @Inject @I static int i;
-
-    static String s;
-
-    @Inject
-    static void setS(@S String s) {
-      Static.s = s;
-    }
-  }
-
-  public void testPrivateInjection() throws CreationException {
-    Injector injector =
-        Guice.createInjector(
-            new AbstractModule() {
-              @Override
-              protected void configure() {
-                bind(String.class).toInstance("foo");
-                bind(int.class).toInstance(5);
-              }
-            });
-
-    Private p = injector.getInstance(Private.class);
-    assertEquals("foo", p.fromConstructor);
-    assertEquals(5, p.fromMethod);
-  }
-
-  static class Private {
-    String fromConstructor;
-    int fromMethod;
-
-    @Inject
-    private Private(String fromConstructor) {
-      this.fromConstructor = fromConstructor;
-    }
-
-    @Inject
-    private void setInt(int i) {
-      this.fromMethod = i;
-    }
-  }
-
-  public void testProtectedInjection() throws CreationException {
-    Injector injector =
-        Guice.createInjector(
-            new AbstractModule() {
-              @Override
-              protected void configure() {
-                bind(String.class).toInstance("foo");
-                bind(int.class).toInstance(5);
-              }
-            });
-
-    Protected p = injector.getInstance(Protected.class);
-    assertEquals("foo", p.fromConstructor);
-    assertEquals(5, p.fromMethod);
-  }
-
-  static class Protected {
-    String fromConstructor;
-    int fromMethod;
-
-    @Inject
-    protected Protected(String fromConstructor) {
-      this.fromConstructor = fromConstructor;
-    }
-
-    @Inject
-    protected void setInt(int i) {
-      this.fromMethod = i;
-    }
-  }
-
-  public void testInstanceInjectionHappensAfterFactoriesAreSetUp() {
-    Guice.createInjector(
-        new AbstractModule() {
-          @Override
-          protected void configure() {
-            bind(Object.class)
-                .toInstance(
-                    new Object() {
-                      @Inject Runnable r;
-                    });
-
-            bind(Runnable.class).to(MyRunnable.class);
-          }
         });
-  }
 
-  public void testSubtypeNotProvided() {
-    try {
-      Guice.createInjector().getInstance(Money.class);
-      fail();
-    } catch (ProvisionException expected) {
-      assertContains(
-          expected.getMessage(),
-          Tree.class.getName() + " doesn't provide instances of " + Money.class.getName(),
-          "while locating ",
-          Tree.class.getName(),
-          "while locating ",
-          Money.class.getName());
+        assertSame(singleton, injector.getInstance(Key.get(SampleSingleton.class)));
+        assertSame(singleton, injector.getInstance(SampleSingleton.class));
+
+        assertSame(other, injector.getInstance(Key.get(SampleSingleton.class, Other.class)));
     }
-  }
 
-  public void testNotASubtype() {
-    try {
-      Guice.createInjector().getInstance(PineTree.class);
-      fail();
-    } catch (ConfigurationException expected) {
-      assertContains(
-          expected.getMessage(),
-          Tree.class.getName() + " doesn't extend " + PineTree.class.getName(),
-          "while locating ",
-          PineTree.class.getName());
+    static class SampleSingleton {
     }
-  }
 
-  public void testRecursiveImplementationType() {
-    try {
-      Guice.createInjector().getInstance(SeaHorse.class);
-      fail();
-    } catch (ConfigurationException expected) {
-      assertContains(
-          expected.getMessage(),
-          "@ImplementedBy points to the same class it annotates.",
-          "while locating ",
-          SeaHorse.class.getName());
+    public void testInjection() throws CreationException {
+        Injector injector = createFooInjector();
+        Foo foo = injector.getInstance(Foo.class);
+
+        assertEquals("test", foo.s);
+        assertEquals("test", foo.bar.getTee().getS());
+        assertSame(foo.bar, foo.copy);
+        assertEquals(5, foo.i);
+        assertEquals(5, foo.bar.getI());
+
+        // Test circular dependency.
+        assertSame(foo.bar, foo.bar.getTee().getBar());
     }
-  }
 
-  public void testRecursiveProviderType() {
-    try {
-      Guice.createInjector().getInstance(Chicken.class);
-      fail();
-    } catch (ConfigurationException expected) {
-      assertContains(
-          expected.getMessage(),
-          "@ProvidedBy points to the same class it annotates",
-          "while locating ",
-          Chicken.class.getName());
+    private Injector createFooInjector() throws CreationException {
+        return Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(Bar.class).to(BarImpl.class);
+                bind(Tee.class).to(TeeImpl.class);
+                bindConstant().annotatedWith(S.class).to("test");
+                bindConstant().annotatedWith(I.class).to(5);
+            }
+        });
     }
-  }
 
-  static class MyRunnable implements Runnable {
-    @Override
-    public void run() {}
-  }
+    public void testGetInstance() throws CreationException {
+        Injector injector = createFooInjector();
 
-  @ProvidedBy(Tree.class)
-  static class Money {}
-
-  static class Tree implements Provider<Object> {
-    @Override
-    public Object get() {
-      return "Money doesn't grow on trees";
+        Bar bar = injector.getInstance(Key.get(Bar.class));
+        assertEquals("test", bar.getTee().getS());
+        assertEquals(5, bar.getI());
     }
-  }
 
-  @ImplementedBy(Tree.class)
-  static class PineTree extends Tree {}
+    /**
+     * 不仅equal， 而且相等
+     * @throws CreationException
+     */
+    public void testIntAndIntegerAreInterchangeable() throws CreationException {
+        Injector injector = Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bindConstant().annotatedWith(I.class).to(5);
+            }
+        });
 
-  @ImplementedBy(SeaHorse.class)
-  static class SeaHorse {}
-
-  @ProvidedBy(Chicken.class)
-  static class Chicken implements Provider<Chicken> {
-    @Override
-    public Chicken get() {
-      return this;
+        IntegerWrapper iw = injector.getInstance(IntegerWrapper.class);
+        System.out.println(iw.i == 5);
+        assertEquals(5, (int) iw.i);
     }
-  }
 
-  public void testJitBindingFromAnotherThreadDuringInjection() {
-    final ExecutorService executorService = Executors.newSingleThreadExecutor();
-    final AtomicReference<JustInTime> got = new AtomicReference<>();
+    public void testInjectorApiIsNotSerializable() throws IOException {
+        Injector injector = Guice.createInjector();
+        assertNotSerializable(injector);
+        assertNotSerializable(injector.getProvider(String.class));
+        assertNotSerializable(injector.getBinding(String.class));
+        for (Binding<?> binding : injector.getBindings().values()) {
+            assertNotSerializable(binding);
+        }
+    }
 
-    Guice.createInjector(
-        new AbstractModule() {
-          @Override
-          protected void configure() {
-            requestInjection(
-                new Object() {
-                  @Inject
-                  void initialize(final Injector injector)
-                      throws ExecutionException, InterruptedException {
-                    Future<JustInTime> future =
-                        executorService.submit(
-                            new Callable<JustInTime>() {
-                              @Override
-                              public JustInTime call() throws Exception {
-                                return injector.getInstance(JustInTime.class);
-                              }
-                            });
-                    got.set(future.get());
-                  }
+    static class IntegerWrapper {
+        @Inject
+        @I
+        Integer i;
+    }
+
+    static class Foo {
+
+        @Inject
+        Bar bar;
+        @Inject
+        Bar copy;
+
+        @Inject
+        @S
+        String s;
+
+        int i;
+
+        @Inject
+        void setI(@I int i) {
+            this.i = i;
+        }
+    }
+
+    interface Bar {
+
+        Tee getTee();
+
+        int getI();
+    }
+
+    @Singleton
+    static class BarImpl implements Bar {
+
+        @Inject
+        @I
+        int i;
+
+        Tee tee;
+
+        @Inject
+        void initialize(Tee tee) {
+            this.tee = tee;
+        }
+
+        @Override
+        public Tee getTee() {
+            return tee;
+        }
+
+        @Override
+        public int getI() {
+            return i;
+        }
+    }
+
+    interface Tee {
+
+        String getS();
+
+        Bar getBar();
+    }
+
+    static class TeeImpl implements Tee {
+
+        final String s;
+        @Inject
+        Bar bar;
+
+        @Inject
+        TeeImpl(@S String s) {
+            this.s = s;
+        }
+
+        @Override
+        public String getS() {
+            return s;
+        }
+
+        @Override
+        public Bar getBar() {
+            return bar;
+        }
+    }
+
+    public void testInjectStatics() throws CreationException {
+        Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bindConstant().annotatedWith(S.class).to("test");
+                bindConstant().annotatedWith(I.class).to(5);
+                // 类创建成功后，静态方法和字段会被注入
+                requestStaticInjection(Static.class);
+            }
+        });
+
+        assertEquals("test", Static.s);
+        assertEquals(5, Static.i);
+    }
+
+    /**
+     * 1) com.google.inject.InjectorTest$Interface is an interface, but interfaces have no static injection points.
+     at com.google.inject.InjectorTest$5.configure(InjectorTest.java:248)
+     */
+    public void testInjectStaticInterface() {
+        try {
+            Guice.createInjector(new AbstractModule() {
+                @Override
+                protected void configure() {
+                    requestStaticInjection(Interface.class);
+                }
+            });
+            fail();
+        } catch (CreationException ce) {
+            ce.printStackTrace();
+            assertEquals(1, ce.getErrorMessages().size());
+            Asserts.assertContains(ce.getMessage(),
+                                   "1) " + Interface.class.getName()
+                                                   + " is an interface, but interfaces have no static injection points.",
+                                   "at " + InjectorTest.class.getName(), "configure");
+        }
+    }
+
+    private static interface Interface {
+    }
+
+    static class Static {
+
+        @Inject
+        @I
+        static int i;
+
+        static String s;
+
+        @Inject
+        static void setS(@S String s) {
+            Static.s = s;
+        }
+    }
+
+    public void testPrivateInjection() throws CreationException {
+        Injector injector = Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(String.class).toInstance("foo");
+                bind(int.class).toInstance(5);
+            }
+        });
+
+        Private p = injector.getInstance(Private.class);
+        assertEquals("foo", p.fromConstructor);
+        assertEquals(5, p.fromMethod);
+    }
+
+    static class Private {
+        private String fromConstructor;
+        private int fromMethod;
+
+        @Inject
+        private Private(String fromConstructor) {
+            this.fromConstructor = fromConstructor;
+        }
+
+        @Inject
+        private void setInt(int i) {
+            this.fromMethod = i;
+        }
+    }
+
+    /**
+     * 哪里体现了 protected ？
+     * @throws CreationException
+     */
+    public void testProtectedInjection() throws CreationException {
+        Injector injector = Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(String.class).toInstance("foo");
+                bind(int.class).toInstance(5);
+            }
+        });
+
+        Protected p = injector.getInstance(Protected.class);
+        assertEquals("foo", p.fromConstructor);
+        assertEquals(5, p.fromMethod);
+    }
+
+    static class Protected {
+        String fromConstructor;
+        int fromMethod;
+
+        @Inject
+        protected Protected(String fromConstructor) {
+            this.fromConstructor = fromConstructor;
+        }
+
+        @Inject
+        protected void setInt(int i) {
+            this.fromMethod = i;
+        }
+    }
+
+    /**
+     * 实例的注入发生在工厂建立之后
+     */
+    public void testInstanceInjectionHappensAfterFactoriesAreSetUp() {
+        Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                bind(Object.class).toInstance(new Object() {
+                    @Inject
+                    Runnable r;
                 });
-          }
+
+                bind(Runnable.class).to(MyRunnable.class);
+            }
+        });
+    }
+
+    /**
+     * 类型不匹配
+     */
+    public void testSubtypeNotProvided() {
+        try {
+            Guice.createInjector().getInstance(Money.class);
+            fail();
+        } catch (ProvisionException expected) {
+            expected.printStackTrace();
+            assertContains(expected.getMessage(),
+                           Tree.class.getName() + " doesn't provide instances of " + Money.class.getName(), "while locating ",
+                           Tree.class.getName(), "while locating ", Money.class.getName());
+        }
+    }
+
+    /**
+     * 颠倒了具体类
+     */
+    public void testNotASubtype() {
+        try {
+            Guice.createInjector().getInstance(PineTree.class);
+            fail();
+        } catch (ConfigurationException expected) {
+            expected.printStackTrace();
+            assertContains(expected.getMessage(), Tree.class.getName() + " doesn't extend " + PineTree.class.getName(),
+                           "while locating ", PineTree.class.getName());
+        }
+    }
+
+    /**
+     * @ImplementedBy 自身
+     */
+    public void testRecursiveImplementationType() {
+        try {
+            Guice.createInjector().getInstance(SeaHorse.class);
+            fail();
+        } catch (ConfigurationException expected) {
+            expected.printStackTrace();
+            assertContains(expected.getMessage(), "@ImplementedBy points to the same class it annotates.", "while locating ",
+                           SeaHorse.class.getName());
+        }
+    }
+
+    /**
+     * @ProvidedBy 自身
+     */
+    public void testRecursiveProviderType() {
+        try {
+            Guice.createInjector().getInstance(Chicken.class);
+            fail();
+        } catch (ConfigurationException expected) {
+            assertContains(expected.getMessage(), "@ProvidedBy points to the same class it annotates", "while locating ",
+                           Chicken.class.getName());
+        }
+    }
+
+    static class MyRunnable implements Runnable {
+        @Override
+        public void run() {
+        }
+    }
+
+    @ProvidedBy(Tree.class)
+    static class Money {
+    }
+
+    static class Tree implements Provider<Object> {
+        @Override
+        public Object get() {
+            return "Money doesn't grow on trees";
+        }
+    }
+
+    @ImplementedBy(Tree.class)
+    static class PineTree extends Tree {
+    }
+
+    @ImplementedBy(SeaHorse.class)
+    static class SeaHorse {
+    }
+
+    @ProvidedBy(Chicken.class)
+    static class Chicken implements Provider<Chicken> {
+        @Override
+        public Chicken get() {
+            return this;
+        }
+    }
+
+    public void testJitBindingFromAnotherThreadDuringInjection() {
+        final ExecutorService executorService = Executors.newSingleThreadExecutor();
+        final AtomicReference<JustInTime> got = new AtomicReference<>();
+
+        Guice.createInjector(new AbstractModule() {
+            @Override
+            protected void configure() {
+                requestInjection(new Object() {
+                    @Inject
+                    void initialize(final Injector injector) throws ExecutionException, InterruptedException {
+                        Future<JustInTime> future = executorService.submit(new Callable<JustInTime>() {
+                            @Override
+                            public JustInTime call() throws Exception {
+                                return injector.getInstance(JustInTime.class);
+                            }
+                        });
+                        got.set(future.get());
+                    }
+                });
+            }
         });
 
-    assertNotNull(got.get());
-  }
+        assertNotNull(got.get());
+    }
 
-  static class JustInTime {}
+    static class JustInTime {
+    }
 }
